@@ -1,6 +1,7 @@
 # import thư viện
 import pygame
 from pygame.locals import *
+import random
 
 pygame.init()
 
@@ -21,6 +22,10 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Flappy Bird")
 game_start = False
 game_over = False
+pipe_gap = 150 #khoảng cách giữa 2 ống
+pipe_frequency = 1500 #tần suất xuất hiện 1 ống (ms)
+last_pipe = pygame.time.get_ticks() - pipe_frequency #thời gian ống cuối cùng được tạo
+
 
 # tao một class Bird bằng pygame.sprite
 # các sprites là các thực thể có thể chuyển động trong game, có màu sắc, hành động,...
@@ -93,10 +98,36 @@ class Bird(pygame.sprite.Sprite):
 
             # xoay flappy khi rơi hoặc khi bay
             self.image = pygame.transform.rotate(self.images[self.index], self.velocity * -2)
+        else:
+            self.image = pygame.transform.rotate(self.images[self.index], -90)
+
+
+class Pipe(pygame.sprite.Sprite):
+    def __init__(self, x, y, position):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load("./asset/img/pipe.png")
+        self.images = []
+        self.rect = self.image.get_rect()
+        # position = 1 thì là ống trên, -1 là ống dưới
+        if position == 1:
+            # xoay ngược hình của cái ống lại
+            self.image = pygame.transform.flip(self.image, False, True)
+            self.rect.bottomleft = [x, y - int(pipe_gap / 2)]
+        else:
+            self.rect.topleft = [x, y + int(pipe_gap / 2)]
+
+    def update(self):
+        self.rect.x -= scroll_speed  # cho ống di chuyển
+        # nếu ống ra khỏi màn hình thì xóa nó luôn
+        if self.rect.right < 0:
+            self.kill()
 
 
 # tạo mảng các sprite, mỗi phần tử là 1 dạng của flappy
 bird_group = pygame.sprite.Group()
+
+# tạo mảng Pipe
+pipe_group = pygame.sprite.Group()
 
 # tạo một đối tượng Bird trước
 flappy = Bird(100, int(screen_height/2))
@@ -116,6 +147,9 @@ while run:
     # vẽ background
     screen.blit(background, (background_scroll,0))
 
+    # vẽ ống
+    pipe_group.draw(screen)
+
     # vẽ flappy
     bird_group.draw(screen)
     bird_group.update()
@@ -123,12 +157,32 @@ while run:
     # vẽ mặt đất
     screen.blit(ground, (ground_scroll, 535))
 
+    # nếu flappy đụng ống
+    if pygame.sprite.groupcollide(bird_group, pipe_group, False, False) or flappy.rect.top < 0: #2 cái false là khi 2 group chạm nhau thì sẽ không có cái nào bị xóa, true là sẽ xóa đi
+        game_over = True
+
     # nếu flappy chạm cỏ
     if flappy.rect.bottom >= 535:
         game_over = True
         game_start = False
 
-    if game_over == False:  #nếu flappy chưa chạm đất
+    if game_over == False and game_start == True:  #nếu flappy chưa chạm đất
+
+        # tạo ống
+        pipe_height = random.randint(-100, 100) #lấy số nguyễn ngẫu nhiên, tạo sự ngẫu nhiên cho các ống
+        time_now = pygame.time.get_ticks()
+        if time_now - last_pipe > pipe_frequency:
+            # tạo một ống trên 
+            top_pipe = Pipe(screen_width, int(screen_height/2) + pipe_height, 1)
+            # tạo một ống dưới 
+            bot_pipe = Pipe(screen_width, int(screen_height/2) + pipe_height, -1)
+            #thêm vào pipe_group
+            pipe_group.add(top_pipe)
+            pipe_group.add(bot_pipe)
+            last_pipe = time_now
+
+        pipe_group.update()
+
         ground_scroll -= scroll_speed # di chuyển mặt đất về bên trái
         background_scroll -= bg_scroll_speed
 
